@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit Tests - Book Management System</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            padding: 30px;
+            background: #1a1a2e;
+            color: #eee;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 { color: #00d2ff; margin-bottom: 4px; }
+        .subtitle { color: #888; margin-bottom: 24px; font-size: 0.85rem; }
+        .suite {
+            margin: 22px 0 10px;
+            padding: 8px 14px;
+            background: #16213e;
+            border-left: 3px solid #00d2ff;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #00d2ff;
+        }
+        .pass { color: #4caf50; padding: 3px 0 3px 14px; }
+        .fail { color: #f44336; font-weight: bold; padding: 3px 0 3px 14px; }
+        .fail .why { color: #ff8a80; font-weight: normal; display: block; padding-left: 18px; font-size: 0.85rem; }
+        .summary {
+            font-size: 1.15rem;
+            margin-top: 26px;
+            padding: 16px 20px;
+            border-radius: 8px;
+        }
+        .all-pass { background: #1b5e20; }
+        .has-fail { background: #b71c1c; }
+        .counts { font-size: 0.85rem; opacity: 0.85; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Unit Tests</h1>
+    <div class="subtitle">Book Management System — app.js core logic</div>
+    <div id="output"></div>
+    <div id="summary"></div>
+
+    <script src="app.js"></script>
+    <script>
+        localStorage.clear();
+
+        let passed = 0;
+        let failed = 0;
+        const out = document.getElementById('output');
+
+        function suite(name) {
+            out.innerHTML += `<div class="suite">${name}</div>`;
+        }
+
+        function assert(condition, testName, detail) {
+            if (condition) {
+                passed++;
+                out.innerHTML += `<div class="pass">&check; ${testName}</div>`;
+            } else {
+                failed++;
+                out.innerHTML += `<div class="fail">&cross; ${testName}${detail ? `<span class="why">${detail}</span>` : ''}</div>`;
+            }
+        }
+
+        // Fast-forward the system clock used inside App by monkey-patching Date
+        // for the return/fine tests, so fine calculation is deterministic instead
+        // of depending on when the suite happens to run.
+        const RealDate = Date;
+        function withClockOffsetDays(days, fn) {
+            const offsetMs = days * 86400000;
+            window.Date = class extends RealDate {
+                constructor(...args) {
+                    if (args.length === 0) super(RealDate.now() + offsetMs);
+                    else super(...args);
+                }
+                static now() {
+                    return RealDate.now() + offsetMs;
+                }
+            };
+            try {
+                return fn();
+            } finally {
+                window.Date = RealDate;
+            }
+        }
+
+        // ============================================
+        // SUITE 1: Books
+        // ============================================
+        suite('Books');
+
+        const addOk = App.addBook({ title: 'Test Book', author: 'Author', isbn: '111', genre: 'Test', year: 2024, totalCopies: 2 });
+        assert(addOk.ok, 'Add book succeeds', addOk.msg);
+        assert(addOk.msg.includes('B001'), 'First book gets ID B001');
+
+        const missingFields = App.addBook({ title: '', author: '', totalCopies: 1 });
+        assert(!missingFields.ok, 'Add book rejects missing title/author');
+
+        const badCopies = App.addBook({ title: 'X', author: 'Y', totalCopies: 0 });
+        assert(!badCopies.ok, 'Add book rejects totalCopies < 1');
+
+        const dupIsbn = App.addBook({ title: 'Dup', author: 'A', isbn: '111', genre: 'T', year: 2024, totalCopies: 1 });
+        assert(!dupIsbn.ok, 'Duplicate ISBN rejected');
+
+        const searchByTitle = App.searchBooks('test');
+        assert(searchByTitle.length === 1 && searchByTitle[0].id === 'B001', 'Search matches by title');
+
+        App.addBook({ title: 'Algorithms Unlocked', author: 'CLRS', isbn: '222', genre: 'Algorithms', year: 2013, totalCopies: 3 });
+        const searchByGenre = App.searchBooks('algorithms');
+        assert(searchByGenre.length === 1 && searchByGenre[0].id === 'B002', 'Search matches by genre');
+
+        const searchNone = App.searchBooks('nonexistent-xyz');
+        assert(searchNone.length === 0, 'Search returns empty array for no matches');
+
+        const deleteWithNoIssued = App.deleteBook('B002');
+        assert(deleteWithNoIssued.ok, 'Delete succeeds when no copies are issued');
+        assert(App.searchBooks('').find(b => b.id === 'B002') === undefined, 'Deleted book no longer appears');
+
+        const deleteMissing = App.deleteBook('B999');
+        assert(!deleteMissing.ok, 'Delete rejects unknown book ID');
+
+        // ============================================
+        // SUITE 2: Members
+        // ============================================
+        suite('Members');
+
+        const memOk = App.registerMember({ name: 'Test Student', type: 'Student', email: 't@t.com' });
+        assert(memOk.ok, 'Register member succeeds');
+        assert(memOk.msg.includes('M001'), 'First member gets ID M001');
+
+        const memNoName = App.registerMember({ name: '', type: 'Student' });
+        assert(!memNoName.ok, 'Register member rejects missing name');
+
+        App.registerMember({ name: 'Dr. Rao', type: 'Faculty', email: 'rao@college.edu' });
+        const studentLimits = App.getMemberLimits({ type: 'Student' });
+        const facultyLimits = App.getMemberLimits({ type: 'Faculty' });
+        assert(studentLimits.maxBooks === 3 && studentLimits.loanDays === 14 && studentLimits.finePerDay === 2, 'Student limits: 3 books / 14 days / Rs.2 fine');
+        assert(facultyLimits.maxBooks === 5 && facultyLimits.loanDays === 30 && facultyLimits.finePerDay === 1, 'Faculty limits: 5 books / 30 days / Rs.1 fine');
+
+        // ============================================
+        // SUITE 3: Issuing books
+        // ============================================
+        suite('Issuing Books');
+
+        const issueMissingMember = App.issueBook('M999', 'B001');
+        assert(!issueMissingMember.ok, 'Issue rejects unknown member');
+
+        const issueMissingBook = App.issueBook('M001', 'B999');
+        assert(!issueMissingBook.ok, 'Issue rejects unknown book');
+
+        const issue1 = App.issueBook('M001', 'B001');
+        assert(issue1.ok, 'Issue book succeeds for valid member/book', issue1.msg);
+
+        const booksAfterIssue = Storage.get('books');
+        const b001 = booksAfterIssue.find(b => b.id === 'B001');
+        assert(b001.availableCopies === 1, 'Available copies decremented after issue');
+        assert(App.activeLoanCount('M001') === 1, 'Active loan count reflects new loan');
+
+        const issueDuplicate = App.issueBook('M001', 'B001');
+        assert(!issueDuplicate.ok, 'Cannot issue the same book twice to the same member');
+
+        App.addBook({ title: 'B2', author: 'A', isbn: '333', genre: 'T', year: 2024, totalCopies: 5 });
+        App.addBook({ title: 'B3', author: 'A', isbn: '444', genre: 'T', year: 2024, totalCopies: 5 });
+        App.addBook({ title: 'B4', author: 'A', isbn: '555', genre: 'T', year: 2024, totalCopies: 5 });
+        // At this point available book IDs are B001 (already issued), B003, B004, B005
+        const catalog = Storage.get('books').map(b => b.id);
+        const [, thirdId, fourthId, fifthId] = catalog; // B001, then the three just added
+
+        App.issueBook('M001', thirdId);
+        App.issueBook('M001', fourthId);
+        const limitHit = App.issueBook('M001', fifthId);
+        assert(!limitHit.ok, 'Student borrowing limit of 3 is enforced');
+        assert(limitHit.msg.toLowerCase().includes('limit'), 'Limit-reached message mentions the limit');
+
+        const soleCopyBook = App.addBook({ title: 'Only One Copy', author: 'A', isbn: '666', genre: 'T', year: 2024, totalCopies: 1 });
+        const soleCopyId = Storage.get('books').slice(-1)[0].id;
+        App.registerMember({ name: 'Second Student', type: 'Student', email: 's2@college.edu' });
+        const secondMemberId = Storage.get('members').slice(-1)[0].id;
+        App.issueBook(secondMemberId, soleCopyId);
+        const noCopiesLeft = App.issueBook('M001', soleCopyId);
+        assert(!noCopiesLeft.ok, 'Cannot issue a book with zero available copies');
+
+        // ============================================
+        // SUITE 4: Reservations
+        // ============================================
+        suite('Reservations');
+
+        const reserveAvailable = App.reserveBook(secondMemberId, thirdId);
+        // thirdId currently issued to M001 with 5 total copies, so copies remain available
+        assert(!reserveAvailable.ok, 'Cannot reserve a book that still has available copies');
+
+        const reserveNoCopies = App.reserveBook('M001', soleCopyId);
+        assert(reserveNoCopies.ok, 'Can reserve a fully-checked-out book', reserveNoCopies.msg);
+        assert(reserveNoCopies.msg.includes('1'), 'First reservation takes queue position 1');
+
+        const reserveDuplicate = App.reserveBook('M001', soleCopyId);
+        assert(!reserveDuplicate.ok, 'Cannot reserve the same book twice');
+
+        const reserveAlreadyIssued = App.reserveBook(secondMemberId, soleCopyId);
+        assert(!reserveAlreadyIssued.ok, 'Cannot reserve a book the member already holds');
+
+        // ============================================
+        // SUITE 5: Returning books & fines
+        // ============================================
+        suite('Returning Books & Fines');
+
+        const activeLoans = Storage.get('loans').filter(l => !l.returned);
+        const onTimeLoan = activeLoans[0];
+
+        const returnOnTime = App.returnBook(onTimeLoan.id);
+        assert(returnOnTime.ok, 'Return book succeeds');
+        assert(returnOnTime.msg.includes('Fine: Rs. 0'), 'No fine charged when returned before due date', returnOnTime.msg);
+
+        const doubleReturn = App.returnBook(onTimeLoan.id);
+        assert(!doubleReturn.ok, 'Returning the same loan twice is rejected');
+
+        const returnMissing = App.returnBook('L999');
+        assert(!returnMissing.ok, 'Return rejects unknown loan ID');
+
+        // Overdue fine: fast-forward 20 days past a fresh Student loan (14-day period, Rs.2/day)
+        App.addBook({ title: 'Overdue Test Book', author: 'A', isbn: '777', genre: 'T', year: 2024, totalCopies: 1 });
+        const overdueBookId = Storage.get('books').slice(-1)[0].id;
+        App.registerMember({ name: 'Overdue Tester', type: 'Student', email: 'od@college.edu' });
+        const overdueMemberId = Storage.get('members').slice(-1)[0].id;
+        App.issueBook(overdueMemberId, overdueBookId);
+        const overdueLoan = Storage.get('loans').find(l => l.bookId === overdueBookId && !l.returned);
+
+        const overdueResult = withClockOffsetDays(20, () => App.returnBook(overdueLoan.id));
+        // 20 days elapsed - 14 day loan period = 6 late days * Rs.2/day = Rs.12
+        assert(overdueResult.ok, 'Overdue return still succeeds');
+        assert(overdueResult.msg.includes('Rs. 12.00'), 'Fine correctly computed as lateDays x finePerDay', overdueResult.msg);
+
+        const bookAfterReturn = Storage.get('books').find(b => b.id === overdueBookId);
+        assert(bookAfterReturn.availableCopies === 1, 'Available copies restored after return');
+
+        // Reservation queue notification on return
+        const returnWithQueue = App.returnBook(
+            Storage.get('loans').find(l => l.bookId === soleCopyId && !l.returned).id
+        );
+        assert(returnWithQueue.msg.includes('Next in queue'), 'Return message flags the next reserved member', returnWithQueue.msg);
+
+        // ============================================
+        // SUITE 6: Dashboard stats
+        // ============================================
+        suite('Dashboard');
+
+        const stats = App.getStats();
+        assert(stats.members === Storage.get('members').length, 'Dashboard member count matches storage');
+        assert(stats.totalBooks === Storage.get('books').reduce((s, b) => s + b.totalCopies, 0), 'Dashboard total book count sums all copies');
+        assert(stats.active === Storage.get('loans').filter(l => !l.returned).length, 'Dashboard active loan count matches unreturned loans');
+
+        // ============================================
+        // SUITE 7: Security
+        // ============================================
+        suite('Security');
+
+        const xssPayload = '<script>alert(1)<' + '/script>';
+        const escaped = escapeHtml(xssPayload);
+        assert(!escaped.includes('<script>'), 'XSS payload is escaped, not executed');
+        assert(escaped.includes('&lt;'), 'Escaped output uses HTML entities');
+
+        // ============================================
+        // Summary
+        // ============================================
+        const sumEl = document.getElementById('summary');
+        const allOk = failed === 0;
+        sumEl.className = 'summary ' + (allOk ? 'all-pass' : 'has-fail');
+        sumEl.innerHTML = `${allOk ? 'All tests passed.' : 'Some tests failed.'}
+            <div class="counts">${passed} passed, ${failed} failed, ${passed + failed} total.</div>`;
+    </script>
+</body>
+</html>
