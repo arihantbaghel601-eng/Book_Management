@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Management System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="sidebar">
+        <h2>📚 Book Manager</h2>
+        <ul>
+            <li><a href="#" class="nav-link active" data-page="dashboard">📊 Dashboard</a></li>
+            <li><a href="#" class="nav-link" data-page="books">📖 Books</a></li>
+            <li><a href="#" class="nav-link" data-page="members">👥 Members</a></li>
+            <li><a href="#" class="nav-link" data-page="issue">📤 Issue Book</a></li>
+            <li><a href="#" class="nav-link" data-page="return">📥 Return Book</a></li>
+            <li><a href="#" class="nav-link" data-page="reservations">🔖 Reservations</a></li>
+            <li><a href="#" class="nav-link" data-page="loans">📋 All Loans</a></li>
+        </ul>
+    </nav>
+
+    <main class="content">
+
+        <!-- DASHBOARD -->
+        <section id="page-dashboard" class="page active">
+            <h1>Dashboard</h1>
+            <div class="stats-grid">
+                <div class="stat-card blue">
+                    <h3 id="stat-books">0</h3>
+                    <p>Total Books</p>
+                </div>
+                <div class="stat-card green">
+                    <h3 id="stat-members">0</h3>
+                    <p>Members</p>
+                </div>
+                <div class="stat-card orange">
+                    <h3 id="stat-active">0</h3>
+                    <p>Active Loans</p>
+                </div>
+                <div class="stat-card red">
+                    <h3 id="stat-overdue">0</h3>
+                    <p>Overdue</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- BOOKS -->
+        <section id="page-books" class="page">
+            <h1>Book Catalog</h1>
+            <div class="toolbar">
+                <input type="text" id="book-search" placeholder="Search by title, author, genre, ISBN...">
+                <button class="btn primary" onclick="showModal('add-book-modal')">+ Add Book</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>ISBN</th>
+                        <th>Genre</th>
+                        <th>Year</th>
+                        <th>Available</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="books-table-body"></tbody>
+            </table>
+        </section>
+
+        <!-- MEMBERS -->
+        <section id="page-members" class="page">
+            <h1>Members</h1>
+            <div class="toolbar">
+                <input type="text" id="member-search" placeholder="Search members...">
+                <button class="btn primary" onclick="showModal('add-member-modal')">+ Register Member</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Email</th>
+                        <th>Max Books</th>
+                        <th>Active Loans</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="members-table-body"></tbody>
+            </table>
+        </section>
+
+        <!-- ISSUE BOOK -->
+        <section id="page-issue" class="page">
+            <h1>Issue Book</h1>
+            <div class="form-card">
+                <label>Member ID</label>
+                <input type="text" id="issue-member-id" placeholder="e.g. M001">
+                <label>Book ID</label>
+                <input type="text" id="issue-book-id" placeholder="e.g. B001">
+                <button class="btn primary" onclick="handleIssueBook()">Issue Book</button>
+                <div id="issue-result" class="result-box"></div>
+            </div>
+        </section>
+
+        <!-- RETURN BOOK -->
+        <section id="page-return" class="page">
+            <h1>Return Book</h1>
+            <div class="form-card">
+                <label>Loan ID</label>
+                <input type="text" id="return-loan-id" placeholder="e.g. L001">
+                <button class="btn primary" onclick="handleReturnBook()">Return Book</button>
+                <div id="return-result" class="result-box"></div>
+            </div>
+        </section>
+
+        <!-- RESERVATIONS -->
+        <section id="page-reservations" class="page">
+            <h1>Reservations</h1>
+            <div class="form-card">
+                <label>Member ID</label>
+                <input type="text" id="reserve-member-id" placeholder="e.g. M001">
+                <label>Book ID</label>
+                <input type="text" id="reserve-book-id" placeholder="e.g. B001">
+                <button class="btn primary" onclick="handleReserveBook()">Reserve Book</button>
+                <div id="reserve-result" class="result-box"></div>
+            </div>
+            <h2>Active Reservations</h2>
+            <div id="reservations-list"></div>
+        </section>
+
+        <!-- ALL LOANS -->
+        <section id="page-loans" class="page">
+            <h1>All Loans</h1>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Loan ID</th>
+                        <th>Book ID</th>
+                        <th>Member ID</th>
+                        <th>Issue Date</th>
+                        <th>Due Date</th>
+                        <th>Return Date</th>
+                        <th>Status</th>
+                        <th>Fine</th>
+                    </tr>
+                </thead>
+                <tbody id="loans-table-body"></tbody>
+            </table>
+        </section>
+
+    </main>
+
+    <!-- ADD BOOK MODAL -->
+    <div id="add-book-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('add-book-modal')">&times;</span>
+            <h2>Add New Book</h2>
+            <label>Title</label>
+            <input type="text" id="book-title">
+            <label>Author</label>
+            <input type="text" id="book-author">
+            <label>ISBN</label>
+            <input type="text" id="book-isbn">
+            <label>Genre</label>
+            <input type="text" id="book-genre">
+            <label>Year</label>
+            <input type="number" id="book-year">
+            <label>Total Copies</label>
+            <input type="number" id="book-copies" min="1">
+            <button class="btn primary" onclick="handleAddBook()">Save Book</button>
+        </div>
+    </div>
+
+    <!-- ADD MEMBER MODAL -->
+    <div id="add-member-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('add-member-modal')">&times;</span>
+            <h2>Register Member</h2>
+            <label>Name</label>
+            <input type="text" id="member-name">
+            <label>Type</label>
+            <select id="member-type">
+                <option value="Student">Student</option>
+                <option value="Faculty">Faculty</option>
+            </select>
+            <label>Email</label>
+            <input type="email" id="member-email">
+            <button class="btn primary" onclick="handleAddMember()">Register</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
